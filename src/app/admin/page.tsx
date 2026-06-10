@@ -1,7 +1,7 @@
 // app/admin/page.tsx — Admin Dashboard (Server Component)
 // Shows order summary stats + recent orders table.
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { Order } from '@/types';
 import AdminOrderTable  from '@/components/admin/AdminOrderTable';
 import AdminStatCards   from '@/components/admin/AdminStatCards';
@@ -10,12 +10,12 @@ export const dynamic = 'force-dynamic'; // always fresh for admin
 
 async function getDashboardData() {
   const [ordersRes, revenueRes] = await Promise.all([
-    supabaseAdmin
+    supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50),
-    supabaseAdmin
+    supabase
       .from('orders')
       .select('total_amount, payment_status, production_status'),
   ]);

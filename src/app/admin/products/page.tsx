@@ -1,13 +1,13 @@
 // app/admin/products/page.tsx — Product Manager (Server Component)
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { Product }  from '@/types';
 import AdminProductTable from '@/components/admin/AdminProductTable';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminProductsPage() {
-  const { data: products } = await supabaseAdmin
+  const { data: products } = await supabase
     .from('products')
     .select('*')
     .order('created_at', { ascending: false });

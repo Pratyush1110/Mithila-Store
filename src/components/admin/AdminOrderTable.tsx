@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import type { Order, ProductionStatus } from '@/types';
 
 // ─── Toast ────────────────────────────────────────────────────────
@@ -34,10 +33,10 @@ function Toast({ message, kind }: ToastState) {
 
 // ─── Status select ────────────────────────────────────────────────
 const STATUS_OPTIONS: { value: ProductionStatus; label: string; color: string; bg: string }[] = [
-  { value: 'received',  label: 'Received',    color: '#7A4F00', bg: '#FEF3E2' },
-  { value: 'painting',  label: 'Being Crafted', color: '#1A5276', bg: '#EBF5FB' },
-  { value: 'shipped',   label: 'Shipped',     color: '#5B2C6F', bg: '#F5EEF8' },
-  { value: 'delivered', label: 'Delivered',   color: '#3B5E3A', bg: '#EAF3E9' },
+  { value: 'received',  label: 'Received',      color: '#7A4F00', bg: '#FEF3E2' },
+  { value: 'painting',  label: 'Being Crafted',  color: '#1A5276', bg: '#EBF5FB' },
+  { value: 'shipped',   label: 'Shipped',        color: '#5B2C6F', bg: '#F5EEF8' },
+  { value: 'delivered', label: 'Delivered',      color: '#3B5E3A', bg: '#EAF3E9' },
 ];
 
 function statusStyle(value: ProductionStatus): React.CSSProperties {
@@ -46,8 +45,8 @@ function statusStyle(value: ProductionStatus): React.CSSProperties {
 }
 
 interface StatusSelectProps {
-  orderId: string;
-  current: ProductionStatus;
+  orderId:  string;
+  current:  ProductionStatus;
   onUpdate: (orderId: string, status: ProductionStatus) => Promise<void>;
 }
 
@@ -72,22 +71,22 @@ function StatusSelect({ orderId, current, onUpdate }: StatusSelectProps) {
       disabled={loading}
       aria-label="Workshop status"
       style={{
-        fontFamily:          '"DM Sans", system-ui, sans-serif',
-        fontSize:            '0.75rem',
-        fontWeight:          500,
-        letterSpacing:       '0.04em',
+        fontFamily:         '"DM Sans", system-ui, sans-serif',
+        fontSize:           '0.75rem',
+        fontWeight:         500,
+        letterSpacing:      '0.04em',
         ...style,
-        border:              `1px solid ${style.color}33`,
-        padding:             '5px 28px 5px 10px',
-        cursor:              loading ? 'not-allowed' : 'pointer',
-        appearance:          'none',
-        backgroundImage:     `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B6057' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-        backgroundRepeat:    'no-repeat',
-        backgroundPosition:  'right 8px center',
-        outline:             'none',
-        opacity:             loading ? 0.6 : 1,
-        transition:          'opacity 0.15s',
-        minWidth:            '140px',
+        border:             `1px solid ${style.color}33`,
+        padding:            '5px 28px 5px 10px',
+        cursor:             loading ? 'not-allowed' : 'pointer',
+        appearance:         'none',
+        backgroundImage:    `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B6057' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+        backgroundRepeat:   'no-repeat',
+        backgroundPosition: 'right 8px center',
+        outline:            'none',
+        opacity:            loading ? 0.6 : 1,
+        transition:         'opacity 0.15s',
+        minWidth:           '140px',
       }}
     >
       {STATUS_OPTIONS.map(opt => (
@@ -97,7 +96,7 @@ function StatusSelect({ orderId, current, onUpdate }: StatusSelectProps) {
   );
 }
 
-// ─── Payment badge ────────────────────────────────────────────────
+// ─── Payment badge ─────────────────────────────────────────────────
 function PaymentBadge({ status }: { status: string }) {
   const palette =
     status === 'captured' ? { bg: '#EAF3E9', color: '#3B5E3A', border: '#8CBF8A' } :
@@ -121,7 +120,7 @@ function PaymentBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Skeleton row ─────────────────────────────────────────────────
+// ─── Skeleton row ──────────────────────────────────────────────────
 function SkeletonRow() {
   return (
     <tr>
@@ -140,9 +139,13 @@ function SkeletonRow() {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────
-export default function AdminOrderTable() {
-  const [orders,  setOrders]  = useState<Order[]>([]);
+// ─── Main component ────────────────────────────────────────────────
+interface AdminOrderTableProps {
+  orders?: Order[];
+}
+
+export default function AdminOrderTable({ orders: initialOrders = [] }: AdminOrderTableProps) {
+  const [orders,  setOrders]  = useState<Order[]>(initialOrders);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [toast,   setToast]   = useState<ToastState | null>(null);
@@ -155,18 +158,19 @@ export default function AdminOrderTable() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: fetchError } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (fetchError) {
-      setError(fetchError.message);
-    } else {
-      setOrders((data as Order[]) ?? []);
+    try {
+      const res = await fetch('/api/admin/orders', { credentials: 'same-origin' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Server error ${res.status}`);
+      }
+      const { orders: data } = await res.json();
+      setOrders(data ?? []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load orders.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -174,21 +178,24 @@ export default function AdminOrderTable() {
   }, [fetchOrders]);
 
   async function handleStatusUpdate(orderId: string, status: ProductionStatus) {
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({ production_status: status })
-      .eq('id', orderId);
-
-    if (updateError) {
-      showToast(`Update failed: ${updateError.message}`, 'error');
-      // Revert optimistic UI by re-fetching
-      fetchOrders();
-    } else {
+    try {
+      const res = await fetch('/api/admin/orders', {
+        method:      'PATCH',
+        credentials: 'same-origin',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ id: orderId, production_status: status }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Server error ${res.status}`);
+      }
       showToast('Status updated successfully.', 'success');
-      // Update local state in-place — no full re-fetch needed
       setOrders(prev =>
         prev.map(o => o.id === orderId ? { ...o, production_status: status } : o),
       );
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
+      fetchOrders();
     }
   }
 
@@ -213,11 +220,11 @@ export default function AdminOrderTable() {
 
   const TD = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
     <td style={{
-      padding:    '14px 16px',
-      fontFamily: '"DM Sans", system-ui, sans-serif',
-      fontSize:   '0.875rem',
-      color:      '#1A1714',
-      borderBottom: '1px solid #F0EDE6',
+      padding:       '14px 16px',
+      fontFamily:    '"DM Sans", system-ui, sans-serif',
+      fontSize:      '0.875rem',
+      color:         '#1A1714',
+      borderBottom:  '1px solid #F0EDE6',
       verticalAlign: 'middle',
       ...style,
     }}>
@@ -231,17 +238,36 @@ export default function AdminOrderTable() {
 
       <div style={{ overflowX: 'auto' }}>
         {error && (
-          <p style={{
-            fontFamily: '"DM Sans"',
-            fontSize:   '0.875rem',
-            color:      '#991B1B',
-            background: '#FEF2F2',
-            border:     '1px solid #FCA5A5',
-            padding:    '12px 16px',
+          <div style={{
+            fontFamily:   '"DM Sans", system-ui, sans-serif',
+            fontSize:     '0.875rem',
+            color:        '#991B1B',
+            background:   '#FEF2F2',
+            border:       '1px solid #FCA5A5',
+            padding:      '12px 16px',
             marginBottom: '16px',
+            display:      'flex',
+            alignItems:   'center',
+            gap:          '12px',
           }}>
-            Failed to load orders: {error}
-          </p>
+            <span style={{ flex: 1 }}>Failed to load orders: {error}</span>
+            <button
+              onClick={fetchOrders}
+              style={{
+                fontFamily: '"DM Sans", system-ui, sans-serif',
+                fontSize:   '0.8125rem',
+                fontWeight: 500,
+                color:      '#991B1B',
+                background: 'transparent',
+                border:     '1px solid #FCA5A5',
+                padding:    '4px 12px',
+                cursor:     'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Retry
+            </button>
+          </div>
         )}
 
         {!error && !loading && orders.length === 0 && (
@@ -251,7 +277,12 @@ export default function AdminOrderTable() {
             background: '#FAFAF7',
             border:     '1px solid #E8E4DC',
           }}>
-            <p style={{ fontFamily: '"Playfair Display"', fontSize: '1.125rem', color: '#4A3F36', margin: '0 0 8px' }}>
+            <p style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize:   '1.125rem',
+              color:      '#4A3F36',
+              margin:     '0 0 8px',
+            }}>
               No orders yet
             </p>
             <p style={{ fontFamily: '"DM Sans"', fontSize: '0.875rem', color: '#9B9187', margin: 0 }}>
@@ -262,10 +293,10 @@ export default function AdminOrderTable() {
 
         {(loading || orders.length > 0) && (
           <table style={{
-            width:           '100%',
-            borderCollapse:  'collapse',
-            background:      '#FAFAF7',
-            border:          '1px solid #E8E4DC',
+            width:          '100%',
+            borderCollapse: 'collapse',
+            background:     '#FAFAF7',
+            border:         '1px solid #E8E4DC',
           }}>
             <thead>
               <tr>
@@ -288,37 +319,30 @@ export default function AdminOrderTable() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#F8F5F0')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
-                    {/* Order ID */}
                     <TD>
                       <span style={{
-                        fontFamily:    '"DM Sans", system-ui, sans-serif',
-                        fontSize:      '0.75rem',
-                        color:         '#9B9187',
+                        fontFamily:         '"DM Sans", system-ui, sans-serif',
+                        fontSize:           '0.75rem',
+                        color:              '#9B9187',
                         fontVariantNumeric: 'tabular-nums',
-                        letterSpacing: '0.03em',
+                        letterSpacing:      '0.03em',
                       }}>
                         {order.razorpay_order_id
                           ? order.razorpay_order_id.slice(-10)
-                          : order.id.slice(0, 8)}
-                        …
+                          : order.id.slice(0, 8)}…
                       </span>
                     </TD>
 
-                    {/* Date */}
                     <TD style={{ color: '#6B6057', whiteSpace: 'nowrap' }}>
                       {new Date(order.created_at).toLocaleDateString('en-IN', {
-                        day:   '2-digit',
-                        month: 'short',
-                        year:  'numeric',
+                        day: '2-digit', month: 'short', year: 'numeric',
                       })}
                     </TD>
 
-                    {/* Customer name */}
                     <TD style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
                       {order.customer_name}
                     </TD>
 
-                    {/* Contact */}
                     <TD>
                       <span style={{ display: 'block', color: '#1A1714', fontSize: '0.875rem' }}>
                         {order.customer_email}
@@ -330,7 +354,6 @@ export default function AdminOrderTable() {
                       )}
                     </TD>
 
-                    {/* Amount */}
                     <TD style={{ whiteSpace: 'nowrap' }}>
                       <span style={{
                         fontFamily: '"Playfair Display", Georgia, serif',
@@ -342,12 +365,10 @@ export default function AdminOrderTable() {
                       </span>
                     </TD>
 
-                    {/* Payment */}
                     <TD>
                       <PaymentBadge status={order.payment_status} />
                     </TD>
 
-                    {/* Workshop status — live select */}
                     <TD>
                       <StatusSelect
                         orderId={order.id}

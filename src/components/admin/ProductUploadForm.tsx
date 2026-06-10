@@ -3,6 +3,7 @@
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ProductCategory, ProductType } from '@/types';
+import { useRouter } from 'next/navigation';
 
 interface FormState {
   title:       string;
@@ -122,6 +123,7 @@ export default function ProductUploadForm() {
   const [submitting,    setSubmitting]    = useState(false);
   const [toast,         setToast]         = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   function showToast(message: string, kind: 'success' | 'error') {
     setToast({ message, kind });
@@ -217,16 +219,17 @@ export default function ProductUploadForm() {
       if (insertError) throw new Error(insertError.message);
 
       showToast('Product added successfully.', 'success');
-      setForm(INITIAL_FORM);
-      setImageFiles([]);
-      setImagePreviews([]);
-      setUploadProgress(0);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      // ── The Fix: Redirect and force a cache refresh ──
+      router.push('/admin/products');
+      router.refresh();
+      
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Something went wrong.', 'error');
-    } finally {
       setSubmitting(false);
-    }
+    } 
+    // We remove the `finally { setSubmitting(false) }` block because 
+    // a successful upload will redirect the user away from this page entirely!
   }
 
   const isWorking = uploading || submitting;
