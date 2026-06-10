@@ -1,12 +1,15 @@
 // middleware.ts — Protect /admin routes
-// Uses a simple signed cookie set by a /api/admin/login route.
-// For production, replace with Supabase Auth or NextAuth.
-
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // 1. CRITICAL ALLOWANCE: If the request is for the login page, let it through!
+  if (pathname === '/admin/login' || pathname === '/admin/login/') {
+    return NextResponse.next();
+  }
+
+  // 2. Protect all other /admin routes
   if (pathname.startsWith('/admin')) {
     const token = req.cookies.get('admin_token')?.value;
 
