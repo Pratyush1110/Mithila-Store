@@ -1,27 +1,21 @@
-// app/shop/page.tsx — Shop Listing (Server Component)
-// Mithila paintings are always fetched + rendered before knitting.
-
 import { supabase } from '@/lib/supabase';
 import type { Product, ProductCategory } from '@/types';
-import ProductCard   from '@/components/shop/ProductCard';
-import ShopFilters   from '@/components/shop/ShopFilters';
+import ProductCard from '@/components/shop/ProductCard';
+import ShopFilters from '@/components/shop/ShopFilters';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 interface ShopPageProps {
   searchParams: {
     category?: ProductCategory;
-    type?:     'ready_to_ship' | 'made_to_order';
-    sort?:     'newest' | 'price_asc' | 'price_desc';
+    type?: 'ready_to_ship' | 'made_to_order';
+    sort?: 'newest' | 'price_asc' | 'price_desc';
   };
 }
 
 async function getProducts(params: ShopPageProps['searchParams']): Promise<Product[]> {
-  let query = supabase
-    .from('products')
-    .select('*');
+  let query = supabase.from('products').select('*');
 
-  // Category filter — default to mithila_painting first if no filter set
   if (params.category) {
     query = query.eq('category', params.category);
   }
@@ -29,18 +23,21 @@ async function getProducts(params: ShopPageProps['searchParams']): Promise<Produ
     query = query.eq('type', params.type);
   }
 
-  // Sorting
   switch (params.sort) {
-    case 'price_asc':  query = query.order('price', { ascending: true });  break;
-    case 'price_desc': query = query.order('price', { ascending: false }); break;
-    default:           query = query.order('created_at', { ascending: false });
+    case 'price_asc':
+      query = query.order('price', { ascending: true });
+      break;
+    case 'price_desc':
+      query = query.order('price', { ascending: false });
+      break;
+    default:
+      query = query.order('created_at', { ascending: false });
   }
 
   const { data } = await query.limit(50);
 
   if (!data) return [];
 
-  // If no category filter: paintings always surface first
   if (!params.category) {
     return [
       ...data.filter(p => p.category === 'mithila_painting'),
@@ -55,7 +52,6 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Page header */}
       <div className="mb-10">
         <h1 className="font-display text-4xl md:text-5xl text-[var(--color-ink)] mb-3">
           The Shop
@@ -65,10 +61,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         </p>
       </div>
 
-      {/* Filters */}
       <ShopFilters active={searchParams} />
 
-      {/* Product grid */}
       {products.length === 0 ? (
         <p className="text-center text-[var(--color-muted)] mt-24 text-lg">
           No products found. Check back soon!
