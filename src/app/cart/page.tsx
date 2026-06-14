@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem } from '@/types';
+import { useRouter } from 'next/navigation';
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -229,6 +230,7 @@ function CartLineItem({ item, onUpdate, onRemove }: {
 
 export default function CartPage() {
   const { items, totalAmount, update, remove } = useCart();
+  const router = useRouter();
 
   if (items.length === 0) {
     return (
@@ -394,8 +396,8 @@ export default function CartPage() {
             <button
               type="button"
               onClick={() => {
-                // TODO: hook up payment gateway flow
-                window.location.href = '/checkout';
+                // ── The Fix: Navigate using Next.js client router instead of a hard refresh ──
+                router.push('/checkout');
               }}
               style={{
                 fontFamily: 'var(--font-body)',
