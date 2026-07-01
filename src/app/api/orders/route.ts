@@ -1,6 +1,6 @@
-// app/api/orders/route.ts — POST to create an order
+// app/api/orders/route.ts — POST to create an order (pending payment)
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import type { CartItem } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -22,9 +22,13 @@ export async function POST(req: NextRequest) {
       razorpay_order_id: string;
     } = body;
 
-    // Validate
-    if (!customer_name || !customer_email || !shipping_address || !items?.length) {
+    // Validate required fields
+    if (!customer_name || !customer_email || !shipping_address || !items?.length || !razorpay_order_id) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+    }
+
+    if (!supabase) {
+      return NextResponse.json({ error: 'Server misconfiguration.' }, { status: 500 });
     }
 
     const total_amount = items.reduce(
@@ -32,17 +36,17 @@ export async function POST(req: NextRequest) {
       0,
     );
 
-    // Insert order
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Insert order — cart_items stored as JSONB snapshot for audit/reference
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         customer_name,
         customer_email,
-        customer_phone: customer_phone ?? null,
+        customer_phone:    customer_phone ?? null,
         shipping_address,
         total_amount,
         razorpay_order_id,
-        payment_status:   'pending',
+        payment_status:    'pending',
         production_status: 'received',
       })
       .select()
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: orderError?.message ?? 'Failed to create order.' }, { status: 500 });
     }
 
-    // Insert order items
+    // Insert order_items rows for relational queries (admin, track-order, etc.)
     const orderItems = items.map(item => ({
       order_id:          order.id,
       product_id:        item.product.id,
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
       price_at_purchase: item.product.price,
     }));
 
-    const { error: itemsError } = await supabaseAdmin
+    const { error: itemsError } = await supabase
       .from('order_items')
       .insert(orderItems);
 

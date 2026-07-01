@@ -1,14 +1,15 @@
 // app/checkout/page.tsx — Checkout (Client Component)
 // Premium, gallery-style checkout: shipping form (left) + order summary (right).
-// Creates a Razorpay order, opens checkout, verifies payment, then writes
-// the order to Supabase via /api/orders.
+// Online payments are currently disabled — after the customer fills in their
+// details, we stash the order summary and redirect to /order-unavailable,
+// where they're pointed to WhatsApp / a phone call to complete the order.
 
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/hooks/useCart';
-import type { RazorpayResponse } from '@/types';
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -129,18 +130,12 @@ function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) 
 }
 
 export default function CheckoutPage() {
+  const router = useRouter();
   const { items, totalAmount, clear } = useCart();
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<{
-    name: string;
-    email: string;
-    total: number;
-    itemCount: number;
-  } | null>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -150,21 +145,7 @@ export default function CheckoutPage() {
   const shipping  = 0; // free shipping for now
   const grandTotal = totalAmount + shipping;
 
-  function loadRazorpayScript(): Promise<boolean> {
-    return new Promise(resolve => {
-      if (typeof window !== 'undefined' && window.Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload  = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
@@ -194,231 +175,30 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
 
+    // Online payments are currently disabled. Stash the order summary so
+    // the /order-unavailable page can show it and pre-fill a WhatsApp
+    // message, then send the customer there — no DB write, no payment.
+    const pendingOrder = {
+      customer_name:  form.customer_name.trim(),
+      customer_email: form.customer_email.trim(),
+      customer_phone: form.customer_phone.trim(),
+      shipping_address,
+      items: items.map(i => ({
+        title:    i.product.title,
+        quantity: i.quantity,
+        price:    i.product.price,
+      })),
+      total: grandTotal,
+    };
+
     try {
-      // 1. Create Razorpay order (amount in paise)
-      const amountInPaise = Math.round(grandTotal * 100);
-      const createRes = await fetch('/api/payment/create-order', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ amount: amountInPaise }),
-      });
-      const createData = await createRes.json();
-      if (!createRes.ok || !createData.order) {
-        throw new Error(createData.error ?? 'Could not initiate payment.');
-      }
-
-      const razorpayOrderId = createData.order.id as string;
-
-      // 2. Save the order in our DB (pending payment)
-      const orderRes = await fetch('/api/orders', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          customer_name:     form.customer_name.trim(),
-          customer_email:    form.customer_email.trim(),
-          customer_phone:    form.customer_phone.trim() || undefined,
-          shipping_address,
-          items,
-          razorpay_order_id: razorpayOrderId,
-        }),
-      });
-      const orderData = await orderRes.json();
-      if (!orderRes.ok || !orderData.order) {
-        throw new Error(orderData.error ?? 'Could not create order.');
-      }
-
-      // 3. Load Razorpay checkout script and open it
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        throw new Error('Could not load payment gateway. Please try again.');
-      }
-
-      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? '';
-
-      const rzp = new window.Razorpay({
-        key:         razorpayKey,
-        amount:      amountInPaise,
-        currency:    'INR',
-        name:        'Mithila Art Studio',
-        description: 'Order payment',
-        order_id:    razorpayOrderId,
-        handler: async (response: RazorpayResponse) => {
-          try {
-            const verifyRes = await fetch('/api/payment/verify', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify(response),
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok || !verifyData.success) {
-              throw new Error(verifyData.error ?? 'Payment verification failed.');
-            }
-
-            setCompletedOrder({
-              name:      form.customer_name.trim(),
-              email:     form.customer_email.trim(),
-              total:     grandTotal,
-              itemCount: items.reduce((s, i) => s + i.quantity, 0),
-            });
-            clear();
-            setIsSuccess(true);
-          } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Payment verification failed.');
-          } finally {
-            setSubmitting(false);
-          }
-        },
-        prefill: {
-          name:    form.customer_name.trim(),
-          email:   form.customer_email.trim(),
-          contact: form.customer_phone.trim(),
-        },
-        theme: { color: '#C0392B' },
-      });
-
-      rzp.open();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-      setSubmitting(false);
+      sessionStorage.setItem('mithila_pending_order', JSON.stringify(pendingOrder));
+    } catch {
+      // sessionStorage unavailable — order-unavailable page will just show a generic message
     }
-  }
 
-  // ── Success view ──────────────────────────────────────────────────
-  if (isSuccess && completedOrder) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--color-bg)' }}>
-        <div style={{
-          maxWidth:   '480px',
-          width:      '100%',
-          background: '#FFFFFF',
-          border:     '1px solid var(--color-border)',
-          padding:    '56px 48px',
-          textAlign:  'center',
-        }}>
-          {/* Double-line accent */}
-          <div aria-hidden="true" style={{
-            width:        '64px',
-            height:       '7px',
-            margin:       '0 auto 32px',
-            background:
-              'linear-gradient(90deg, #C8A96E 0px, #C8A96E 1.5px, transparent 1.5px, transparent 4px, #C8A96E 4px, #C8A96E 5.5px, transparent 5.5px) repeat-x',
-            backgroundSize: '8px 7px',
-          }} />
-
-          <p style={{
-            fontFamily:    'var(--font-body)',
-            fontSize:      '0.6875rem',
-            fontWeight:    500,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            color:         '#C8A96E',
-            margin:        '0 0 16px',
-          }}>
-            Order Confirmed
-          </p>
-
-          <h1 style={{
-            fontFamily: 'var(--font-display)',
-            fontSize:   '2rem',
-            fontWeight: 700,
-            color:      'var(--color-ink)',
-            margin:     '0 0 16px',
-            lineHeight: 1.2,
-          }}>
-            Masterpiece Secured
-          </h1>
-
-          <p style={{
-            fontFamily: 'var(--font-display)',
-            fontSize:   '1rem',
-            fontStyle:  'italic',
-            color:      '#4A3F36',
-            lineHeight: 1.75,
-            margin:     '0 0 36px',
-          }}>
-            Thank you, {completedOrder.name}. Your piece is being prepared with
-            the same care it was painted with. A confirmation has been sent to{' '}
-            {completedOrder.email}.
-          </p>
-
-          <div style={{
-            border:       '1px solid var(--color-border)',
-            background:   '#F9F6F0',
-            padding:      '24px 28px',
-            marginBottom: '36px',
-            textAlign:    'left',
-          }}>
-            <div style={{
-              display:        'flex',
-              justifyContent: 'space-between',
-              fontFamily:     'var(--font-body)',
-              fontSize:       '0.875rem',
-              color:          'var(--color-muted)',
-              marginBottom:   '10px',
-            }}>
-              <span>Items</span>
-              <span>{completedOrder.itemCount}</span>
-            </div>
-            <div style={{
-              display:        'flex',
-              justifyContent: 'space-between',
-              alignItems:     'baseline',
-              paddingTop:     '12px',
-              borderTop:      '1px solid var(--color-border)',
-            }}>
-              <span style={{
-                fontFamily: 'var(--font-body)',
-                fontSize:   '0.9375rem',
-                fontWeight: 500,
-                color:      'var(--color-ink)',
-              }}>
-                Total Paid
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-display)',
-                fontSize:   '1.375rem',
-                fontWeight: 700,
-                color:      'var(--color-primary)',
-              }}>
-                {formatINR(completedOrder.total)}
-              </span>
-            </div>
-          </div>
-
-          <Link
-            href="/shop"
-            style={{
-              display:        'inline-block',
-              fontFamily:     'var(--font-body)',
-              fontSize:       '0.9375rem',
-              fontWeight:     500,
-              color:          '#FAFAF7',
-              background:     'var(--color-primary)',
-              textDecoration: 'none',
-              padding:        '15px 44px',
-              letterSpacing:  '0.02em',
-              borderRadius:   0,
-              transition:     'background 0.2s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-primary-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-primary)')}
-          >
-            Return to the Shop
-          </Link>
-
-          <p style={{
-            fontFamily: 'var(--font-body)',
-            fontSize:   '0.8125rem',
-            color:      '#9B9187',
-            marginTop:  '20px',
-          }}>
-            <Link href="/track-order" style={{ color: '#9B9187', textDecoration: 'underline' }}>
-              Track your order
-            </Link>
-          </p>
-        </div>
-      </div>
-    );
+    clear();
+    router.push('/order-unavailable');
   }
 
   // ── Empty cart guard ────────────────────────────────────────────
@@ -606,7 +386,7 @@ export default function CheckoutPage() {
                 onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = 'var(--color-primary-hover)'; }}
                 onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = 'var(--color-primary)'; }}
               >
-                {submitting ? 'Processing…' : `Pay ${formatINR(grandTotal)} & Place Order`}
+                {submitting ? 'Placing Order…' : 'Place Order'}
               </button>
               <p style={{
                 fontFamily: 'var(--font-body)',
@@ -615,7 +395,7 @@ export default function CheckoutPage() {
                 textAlign:  'center',
                 marginTop:  '14px',
               }}>
-                Secure payments powered by Razorpay
+                Currently, orders are finalized via WhatsApp or a phone call
               </p>
             </div>
           </div>
@@ -764,7 +544,7 @@ export default function CheckoutPage() {
                 onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = 'var(--color-primary-hover)'; }}
                 onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = 'var(--color-primary)'; }}
               >
-                {submitting ? 'Processing…' : `Pay ${formatINR(grandTotal)} & Place Order`}
+                {submitting ? 'Placing Order…' : 'Place Order'}
               </button>
 
               <p style={{
@@ -775,7 +555,7 @@ export default function CheckoutPage() {
                 marginTop:  '16px',
                 marginBottom: 0,
               }}>
-                Secure payments powered by Razorpay
+                Currently, orders are finalized via WhatsApp or a phone call
               </p>
             </div>
           </div>
