@@ -1,5 +1,5 @@
 // app/track-order/page.tsx — Order Tracking (Client Component)
-// Customers enter their Razorpay Order ID or email to look up order status.
+// Customers enter their explicit Razorpay Order ID AND email to securely verify and look up order status.
 
 'use client';
 
@@ -18,10 +18,12 @@ const STATUS_INDEX: Record<Order['production_status'], number> = {
 };
 
 export default function TrackOrderPage() {
-  const [query,   setQuery]  = useState('');
-  const [order,   setOrder]  = useState<Order | null>(null);
+  // ✅ Declared distinct state managers matching the updated 2-factor verification inputs
+  const [email, setEmail] = useState('');
+  const [orderId, setOrderId] = useState('');
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error,   setError]  = useState('');
+  const [error, setError] = useState('');
 
   async function handleTrack(e: React.FormEvent) {
     e.preventDefault();
@@ -30,10 +32,11 @@ export default function TrackOrderPage() {
     setLoading(true);
 
     try {
-      const res  = await fetch(`/api/orders/track?q=${encodeURIComponent(query.trim())}`);
+      // ✅ Properly bound input elements directly to parameters required by our secure tracking endpoint
+      const res = await fetch(`/api/orders/track?email=${encodeURIComponent(email.trim())}&orderId=${encodeURIComponent(orderId.trim())}`);
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error ?? 'Order not found.');
+      if (!res.ok) throw new Error(data.error ?? 'No matching order details found.');
       setOrder(data.order);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -48,29 +51,41 @@ export default function TrackOrderPage() {
     <div className="max-w-2xl mx-auto px-4 py-16">
       <h1 className="font-display text-4xl mb-2">Track Your Order</h1>
       <p className="text-[var(--color-muted)] mb-10">
-        Enter your Razorpay Order ID or the email address used at checkout.
+        To securely access your order progress, please supply both parameters below.
       </p>
 
-      {/* Search form */}
-      <form onSubmit={handleTrack} className="flex gap-3 mb-10">
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Order ID or email address"
-          required
-          className="flex-1 border border-[var(--color-border)] bg-white rounded-lg px-4 py-3
-                     text-[var(--color-ink)] placeholder:text-[var(--color-muted)]
-                     focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-        />
+      {/* Search form expanded for explicit input layout rows */}
+      <form onSubmit={handleTrack} className="flex flex-col gap-4 mb-10">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Email address used at checkout"
+            required
+            className="flex-1 border border-[var(--color-border)] bg-white rounded-lg px-4 py-3
+                       text-[var(--color-ink)] placeholder:text-[var(--color-muted)]
+                       focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          />
+          <input
+            type="text"
+            value={orderId}
+            onChange={e => setOrderId(e.target.value)}
+            placeholder="Razorpay Order ID"
+            required
+            className="flex-1 border border-[var(--color-border)] bg-white rounded-lg px-4 py-3
+                       text-[var(--color-ink)] placeholder:text-[var(--color-muted)]
+                       focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          />
+        </div>
         <button
           type="submit"
           disabled={loading}
-          className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]
-                     text-white px-6 py-3 rounded-lg font-medium transition-colors
+          className="w-full sm:w-auto sm:self-end bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)]
+                     text-white px-8 py-3 rounded-lg font-medium transition-colors
                      disabled:opacity-50"
         >
-          {loading ? 'Searching…' : 'Track'}
+          {loading ? 'Searching…' : 'Track Order'}
         </button>
       </form>
 

@@ -24,7 +24,7 @@ export default async function AdminProductsPage() {
           + Add Product
         </a>
       </div>
-      <AdminProductTable products={(products as Product[]) ?? []} />
+      <AdminProductTable />
     </div>
   );
 }

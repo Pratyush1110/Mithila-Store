@@ -27,7 +27,6 @@ const INITIAL_FORM: FormState = {
   is_featured: false,
 };
 
-// ─── Tiny inline toast ────────────────────────────────────────────
 function Toast({ message, kind }: { message: string; kind: 'success' | 'error' }) {
   return (
     <div style={{
@@ -49,7 +48,6 @@ function Toast({ message, kind }: { message: string; kind: 'success' | 'error' }
   );
 }
 
-// ─── Upload progress bar ──────────────────────────────────────────
 function UploadBar({ progress }: { progress: number }) {
   return (
     <div style={{
@@ -68,7 +66,6 @@ function UploadBar({ progress }: { progress: number }) {
   );
 }
 
-// ─── Field label ──────────────────────────────────────────────────
 function Label({ children, htmlFor, required }: { children: React.ReactNode; htmlFor: string; required?: boolean }) {
   return (
     <label
@@ -113,7 +110,6 @@ const selectStyle: React.CSSProperties = {
   cursor:              'pointer',
 };
 
-// ─── Main component ───────────────────────────────────────────────
 export default function ProductUploadForm() {
   const [form,          setForm]          = useState<FormState>(INITIAL_FORM);
   const [imageFiles,    setImageFiles]    = useState<File[]>([]);
@@ -144,7 +140,6 @@ export default function ProductUploadForm() {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
 
-    // Preview
     const previews = files.map(f => URL.createObjectURL(f));
     setImageFiles(prev => [...prev, ...files]);
     setImagePreviews(prev => [...prev, ...previews]);
@@ -202,9 +197,13 @@ export default function ProductUploadForm() {
     try {
       const imageUrls = await uploadImages();
 
-      const { error: insertError } = await supabase
-        .from('products')
-        .insert({
+      // ✅ SECURED: Submit product registration details via POST body to our endpoint
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           title:       form.title.trim(),
           description: form.description.trim(),
           story:       form.story.trim() || null,
@@ -214,13 +213,17 @@ export default function ProductUploadForm() {
           type:        form.type,
           is_featured: form.is_featured,
           images:      imageUrls,
-        });
+        }),
+      });
 
-      if (insertError) throw new Error(insertError.message);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save product information.');
+      }
 
       showToast('Product added successfully.', 'success');
       
-      // ── The Fix: Redirect and force a cache refresh ──
       router.push('/admin/products');
       router.refresh();
       
@@ -228,8 +231,6 @@ export default function ProductUploadForm() {
       showToast(err instanceof Error ? err.message : 'Something went wrong.', 'error');
       setSubmitting(false);
     } 
-    // We remove the `finally { setSubmitting(false) }` block because 
-    // a successful upload will redirect the user away from this page entirely!
   }
 
   const isWorking = uploading || submitting;
@@ -248,7 +249,6 @@ export default function ProductUploadForm() {
           maxWidth:    '760px',
         }}
       >
-        {/* ── Section: Core Details ── */}
         <fieldset style={{ border: 'none', margin: 0, padding: 0, marginBottom: '40px' }}>
           <legend style={{
             fontFamily:    '"Playfair Display", Georgia, serif',
@@ -265,8 +265,6 @@ export default function ProductUploadForm() {
           </legend>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 32px' }}>
-
-            {/* Title */}
             <div style={{ gridColumn: '1 / -1' }}>
               <Label htmlFor="title" required>Title</Label>
               <input
@@ -281,7 +279,6 @@ export default function ProductUploadForm() {
               />
             </div>
 
-            {/* Price */}
             <div>
               <Label htmlFor="price" required>Price (INR ₹)</Label>
               <div style={{ position: 'relative' }}>
@@ -309,7 +306,6 @@ export default function ProductUploadForm() {
               </div>
             </div>
 
-            {/* Size */}
             <div>
               <Label htmlFor="size">Size</Label>
               <input
@@ -323,7 +319,6 @@ export default function ProductUploadForm() {
               />
             </div>
 
-            {/* Category */}
             <div>
               <Label htmlFor="category" required>Category</Label>
               <select
@@ -338,7 +333,6 @@ export default function ProductUploadForm() {
               </select>
             </div>
 
-            {/* Type */}
             <div>
               <Label htmlFor="type" required>Availability</Label>
               <select
@@ -353,7 +347,6 @@ export default function ProductUploadForm() {
               </select>
             </div>
 
-            {/* Description */}
             <div style={{ gridColumn: '1 / -1' }}>
               <Label htmlFor="description">Description</Label>
               <textarea
@@ -369,7 +362,6 @@ export default function ProductUploadForm() {
           </div>
         </fieldset>
 
-        {/* ── Section: Story ── */}
         <fieldset style={{ border: 'none', margin: 0, padding: 0, marginBottom: '40px' }}>
           <legend style={{
             fontFamily:    '"Playfair Display", Georgia, serif',
@@ -413,7 +405,6 @@ export default function ProductUploadForm() {
           />
         </fieldset>
 
-        {/* ── Section: Images ── */}
         <fieldset style={{ border: 'none', margin: 0, padding: 0, marginBottom: '40px' }}>
           <legend style={{
             fontFamily:    '"Playfair Display", Georgia, serif',
@@ -429,7 +420,6 @@ export default function ProductUploadForm() {
             Images
           </legend>
 
-          {/* Drop zone / file picker */}
           <div
             onClick={() => fileInputRef.current?.click()}
             role="button"
@@ -468,7 +458,6 @@ export default function ProductUploadForm() {
             aria-hidden="true"
           />
 
-          {/* Upload progress */}
           {uploading && (
             <div style={{ marginBottom: '16px' }}>
               <p style={{ fontFamily: '"DM Sans"', fontSize: '0.8125rem', color: '#9B9187', margin: '0 0 4px' }}>
@@ -478,7 +467,6 @@ export default function ProductUploadForm() {
             </div>
           )}
 
-          {/* Previews */}
           {imagePreviews.length > 0 && (
             <div style={{
               display:             'grid',
@@ -487,7 +475,6 @@ export default function ProductUploadForm() {
             }}>
               {imagePreviews.map((src, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={src}
                     alt={`Preview ${i + 1}`}
@@ -529,7 +516,6 @@ export default function ProductUploadForm() {
           )}
         </fieldset>
 
-        {/* ── Featured toggle ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '36px' }}>
           <button
             type="button"
@@ -571,7 +557,6 @@ export default function ProductUploadForm() {
           </span>
         </div>
 
-        {/* ── Submit ── */}
         <button
           type="submit"
           disabled={isWorking}

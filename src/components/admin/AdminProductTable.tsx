@@ -43,12 +43,17 @@ export default function AdminProductTable() {
     if (!window.confirm('Are you sure you want to delete this artwork? This cannot be undone.')) return;
 
     try {
-      const { error: deleteError } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', id);
+      // ✅ SECURED: Routed mutation through server-side /api/admin/products endpoint
+      const response = await fetch(`/api/admin/products?id=${id}`, {
+        method: 'DELETE',
+      });
 
-      if (deleteError) throw deleteError;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete product from inventory.');
+      }
+
       setProducts(prevProducts => prevProducts.filter(product => product.id !== id));
     } catch (err: unknown) {
       alert('Error deleting product: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -91,7 +96,6 @@ export default function AdminProductTable() {
         <tbody className="divide-y divide-[#E8E4DC]">
           {products.map((product) => (
             <tr key={product.id} className="hover:bg-white transition-colors duration-200">
-              {/* Artwork Title & Compressed Thumbnail Column */}
               <td className="py-4 px-6 flex items-center gap-4">
                 <div 
                   style={{ width: '60px', height: '60px', minWidth: '60px', minHeight: '60px' }} 
