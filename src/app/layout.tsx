@@ -1,7 +1,6 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
-import './globals.css';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { CartProvider } from '@/hooks/useCart';
@@ -28,6 +27,9 @@ export const metadata: Metadata = {
     description: 'Authentic Madhubani paintings and handknits',
     type:        'website',
   },
+  icons: {
+    icon: "/favicon.svg",
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
