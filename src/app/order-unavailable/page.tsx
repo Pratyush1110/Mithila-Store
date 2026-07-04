@@ -53,7 +53,9 @@ function buildWhatsAppMessage(order: PendingOrder | null): string {
     `Items:`,
     ...order.items.map(i => `- ${i.title} x${i.quantity} (${formatINR(i.price * i.quantity)})`),
     ``,
-    `Total: ${formatINR(order.total)}`,
+    `📦 Note: Standard shipping charges will be added based on your location, weight, and quantity.`,
+    ``,
+    `Total: ${formatINR(order.total)} + shipping charges`,
   ].filter((line): line is string => line !== null);
 
   return lines.join('\n');

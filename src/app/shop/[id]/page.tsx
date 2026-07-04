@@ -2,9 +2,9 @@ import { supabase } from '@/lib/supabase';
 import type { Product } from '@/types';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import RelatedProducts from '@/components/shop/RelatedProducts';
 import AddToCartButton from '@/components/shop/AddToCartButton';
+import ProductGallery from '@/components/shop/ProductGallery';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +60,6 @@ export default async function ProductPage({ params }: PageProps) {
   if (!product) notFound();
 
   const related = await getRelated(product);
-  const image = product.images[0] ?? null;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
@@ -73,55 +72,8 @@ export default async function ProductPage({ params }: PageProps) {
       </nav>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-20">
-        <div
-          className="max-h-[500px] w-full relative"
-          style={{
-            background: '#F0EDE6',
-            border: '1px solid #C8A96E',
-            padding: '16px',
-            aspectRatio: '4 / 5',
-          }}
-        >
-          {image ? (
-            <Image
-              src={image}
-              alt={product.title}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              style={{ objectFit: 'contain' }}
-              priority
-            />
-          ) : (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-            >
-              <svg width="64" height="64" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-                <ellipse cx="22" cy="24" rx="14" ry="8" stroke="#C8A96E" strokeWidth="1.25" />
-                <path d="M36 24 Q42 18 44 24 Q42 30 36 24Z" fill="none" stroke="#C8A96E" strokeWidth="1.25" />
-                <circle cx="16" cy="22" r="1.5" fill="#C8A96E" />
-                <path d="M20 20 Q22 24 20 28" stroke="#C8A96E" strokeWidth="1" strokeLinecap="round" fill="none" />
-                <path d="M25 18 Q27 24 25 30" stroke="#C8A96E" strokeWidth="1" strokeLinecap="round" fill="none" />
-              </svg>
-              <span
-                style={{
-                  fontFamily: '"DM Sans", system-ui, sans-serif',
-                  fontSize: '0.8125rem',
-                  color: '#C8A96E',
-                  letterSpacing: '0.1em',
-                }}
-              >
-                No image yet
-              </span>
-            </div>
-          )}
+        <div className="max-h-[500px] w-full">
+          <ProductGallery images={product.images} title={product.title} />
         </div>
 
         <div>
