@@ -18,6 +18,7 @@ export default function ProductGallery({ images, title }: Props) {
   if (!images.length) {
     return (
       <div
+        className="w-full max-w-[480px] mx-auto"
         style={{
           aspectRatio: '4/5',
           background: '#F0EDE6',
@@ -56,7 +57,7 @@ export default function ProductGallery({ images, title }: Props) {
   }
 
   return (
-    <div>
+    <div className="w-full max-w-[480px] mx-auto">
       {/* ── Main sliding viewport ── */}
       <div
         style={{

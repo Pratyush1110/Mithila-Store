@@ -72,9 +72,7 @@ export default async function ProductPage({ params }: PageProps) {
       </nav>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-20">
-        <div className="max-h-[500px] w-full">
-          <ProductGallery images={product.images} title={product.title} />
-        </div>
+        <ProductGallery images={product.images} title={product.title} />
 
         <div>
           <p
