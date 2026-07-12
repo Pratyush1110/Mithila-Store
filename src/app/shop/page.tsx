@@ -14,6 +14,9 @@ interface ShopPageProps {
 }
 
 async function getProducts(params: ShopPageProps['searchParams']): Promise<Product[]> {
+  // Fetch everything matching the category/type filters, unsorted here —
+  // sorting happens client-side below, uniformly, with no category
+  // splitting anywhere in the pipeline.
   let query = supabase.from('products').select('*');
 
   if (params.category) {
@@ -23,28 +26,26 @@ async function getProducts(params: ShopPageProps['searchParams']): Promise<Produ
     query = query.eq('type', params.type);
   }
 
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Failed to fetch products:', error.message);
+    return [];
+  }
+
+  const products = data ?? [];
+
   switch (params.sort) {
     case 'price_asc':
-      query = query.order('price', { ascending: true });
-      break;
+      return [...products].sort((a, b) => a.price - b.price);
     case 'price_desc':
-      query = query.order('price', { ascending: false });
-      break;
+      return [...products].sort((a, b) => b.price - a.price);
+    case 'newest':
     default:
-      query = query.order('created_at', { ascending: false });
+      return [...products].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
   }
-
-  const { data } = await query.limit(50);
-
-  if (!data) return [];
-
-  if (!params.category) {
-    return [
-      ...data.filter(p => p.category === 'mithila_painting'),
-      ...data.filter(p => p.category === 'knitting'),
-    ];
-  }
-  return data;
 }
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
@@ -68,7 +69,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           No products found. Check back soon!
         </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">
+        // grid-cols-N in Tailwind compiles to repeat(N, minmax(0, 1fr)) —
+        // the minmax(0, ...) is what stops a child (e.g. an image) from
+        // blowing out its track and collapsing everything to one column.
+        // min-w-0 below is a second guard on each grid item for the same reason.
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
           {products.map(product => (
             <ProductCard key={product.id} product={product} />
           ))}

@@ -33,13 +33,17 @@ export default function ShopFilters({ active }: ShopFiltersProps) {
     [router, pathname, searchParams],
   );
 
-  const activeCategory = (active.category ?? 'mithila_painting') as CategoryFilter;
+  // No default fallback here anymore — if there's no category param, the
+  // "All" tab (value: undefined) is what should be highlighted, because
+  // that's genuinely what the data on screen reflects.
+  const activeCategory = active.category as CategoryFilter;
   const activeType     = active.type     as TypeFilter;
   const activeSort     = active.sort     as SortOption;
 
-  const categories: { value: CategoryFilter; label: string; primary: boolean }[] = [
-    { value: 'mithila_painting', label: 'Mithila Paintings', primary: true  },
-    { value: 'knitting',         label: 'Knitting',           primary: false },
+  const categories: { value: CategoryFilter; label: string }[] = [
+    { value: undefined,          label: 'All'                },
+    { value: 'mithila_painting', label: 'Mithila Paintings'  },
+    { value: 'knitting',         label: 'Knitting'           },
   ];
 
   const types: { value: TypeFilter; label: string }[] = [
@@ -54,7 +58,6 @@ export default function ShopFilters({ active }: ShopFiltersProps) {
     { value: 'price_desc',  label: 'Price: High–Low' },
   ];
 
-  /* Shared style helpers */
   const pillBase: React.CSSProperties = {
     fontFamily:    '"DM Sans", system-ui, sans-serif',
     fontSize:      '0.875rem',
@@ -69,7 +72,7 @@ export default function ShopFilters({ active }: ShopFiltersProps) {
   return (
     <div style={{ marginBottom: '0' }}>
 
-      {/* ── Primary category tabs ── */}
+      {/* ── Category tabs (All / Mithila Paintings / Knitting) ── */}
       <div
         role="tablist"
         aria-label="Filter by category"
@@ -84,7 +87,7 @@ export default function ShopFilters({ active }: ShopFiltersProps) {
           const isSelected = activeCategory === cat.value;
           return (
             <button
-              key={cat.value}
+              key={cat.value ?? 'all'}
               role="tab"
               aria-selected={isSelected}
               onClick={() => updateParam('category', cat.value)}
@@ -95,28 +98,10 @@ export default function ShopFilters({ active }: ShopFiltersProps) {
                 marginRight:   '32px',
                 paddingBottom: '12px',
                 borderBottom:  isSelected ? '2px solid #1A1714' : '2px solid transparent',
-                marginBottom:  '-1px', /* sit on top of container border */
-                fontSize:      cat.primary ? '0.9375rem' : '0.875rem',
+                marginBottom:  '-1px',
               }}
             >
               {cat.label}
-              {cat.primary && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display:       'inline-block',
-                    marginLeft:    '6px',
-                    fontSize:      '0.65rem',
-                    fontWeight:    500,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    color:         isSelected ? '#C8A96E' : '#C8A96E',
-                    opacity:       isSelected ? 1 : 0.7,
-                  }}
-                >
-                  ★
-                </span>
-              )}
             </button>
           );
         })}
