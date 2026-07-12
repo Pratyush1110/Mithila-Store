@@ -5,6 +5,7 @@ import './globals.css';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { CartProvider } from '@/hooks/useCart';
+import { Toaster } from 'sonner';
 
 // Distinctive font pairing: editorial serif + clean sans
 const playfair = Playfair_Display({
@@ -38,6 +39,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Navbar />
           <main className="min-h-screen">{children}</main>
           <Footer />
+          <Toaster
+            position="top-right"
+            gap={12}
+            toastOptions={{ unstyled: true, className: 'flex justify-end w-full' }}
+          />
         </CartProvider>
       </body>
     </html>
