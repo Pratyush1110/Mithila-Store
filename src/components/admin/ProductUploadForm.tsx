@@ -2,7 +2,7 @@
 
 import { useState, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { ProductCategory, ProductType } from '@/types';
+import type { Product, ProductCategory, ProductType } from '@/types';
 import { useRouter } from 'next/navigation';
 
 interface FormState {
@@ -26,6 +26,25 @@ const INITIAL_FORM: FormState = {
   type:        'ready_to_ship',
   is_featured: false,
 };
+
+interface ProductUploadFormProps {
+  initialData?: Product;
+  isEdit?:      boolean;
+}
+
+function toFormState(product?: Product): FormState {
+  if (!product) return INITIAL_FORM;
+  return {
+    title:       product.title ?? '',
+    price:       product.price != null ? String(product.price) : '',
+    size:        product.size ?? '',
+    description: product.description ?? '',
+    story:       product.story ?? '',
+    category:    product.category ?? 'mithila_painting',
+    type:        product.type ?? 'ready_to_ship',
+    is_featured: product.is_featured ?? false,
+  };
+}
 
 function Toast({ message, kind }: { message: string; kind: 'success' | 'error' }) {
   return (
@@ -110,8 +129,10 @@ const selectStyle: React.CSSProperties = {
   cursor:              'pointer',
 };
 
-export default function ProductUploadForm() {
-  const [form,          setForm]          = useState<FormState>(INITIAL_FORM);
+export default function ProductUploadForm({ initialData, isEdit = false }: ProductUploadFormProps) {
+  const [form,          setForm]          = useState<FormState>(() => toFormState(initialData));
+  // Images already stored in Supabase (only relevant when editing)
+  const [existingImages, setExistingImages] = useState<string[]>(initialData?.images ?? []);
   const [imageFiles,    setImageFiles]    = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -120,6 +141,10 @@ export default function ProductUploadForm() {
   const [toast,         setToast]         = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  function removeExistingImage(index: number) {
+    setExistingImages(prev => prev.filter((_, i) => i !== index));
+  }
 
   function showToast(message: string, kind: 'success' | 'error') {
     setToast({ message, kind });
@@ -195,25 +220,33 @@ export default function ProductUploadForm() {
 
     setSubmitting(true);
     try {
-      const imageUrls = await uploadImages();
+      const newImageUrls = await uploadImages();
+      const images = [...existingImages, ...newImageUrls];
 
-      // ✅ SECURED: Submit product registration details via POST body to our endpoint
-      const response = await fetch('/api/admin/products', {
-        method: 'POST',
+      const payload = {
+        title:       form.title.trim(),
+        description: form.description.trim(),
+        story:       form.story.trim() || null,
+        price,
+        size:        form.size.trim() || null,
+        category:    form.category,
+        type:        form.type,
+        is_featured: form.is_featured,
+        images,
+      };
+
+      // ✅ SECURED: Submit product details via our authenticated API endpoint.
+      // Edit mode PUTs to the single-product route; create mode POSTs to the collection route.
+      const endpoint = isEdit && initialData
+        ? `/api/admin/products/${initialData.id}`
+        : '/api/admin/products';
+
+      const response = await fetch(endpoint, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title:       form.title.trim(),
-          description: form.description.trim(),
-          story:       form.story.trim() || null,
-          price,
-          size:        form.size.trim() || null,
-          category:    form.category,
-          type:        form.type,
-          is_featured: form.is_featured,
-          images:      imageUrls,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -222,11 +255,11 @@ export default function ProductUploadForm() {
         throw new Error(result.error || 'Failed to save product information.');
       }
 
-      showToast('Product added successfully.', 'success');
-      
+      showToast(isEdit ? 'Product updated successfully.' : 'Product added successfully.', 'success');
+
       router.push('/admin/products');
       router.refresh();
-      
+
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Something went wrong.', 'error');
       setSubmitting(false);
@@ -467,14 +500,53 @@ export default function ProductUploadForm() {
             </div>
           )}
 
-          {imagePreviews.length > 0 && (
+          {(existingImages.length > 0 || imagePreviews.length > 0) && (
             <div style={{
               display:             'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
               gap:                 '12px',
             }}>
+              {existingImages.map((src, i) => (
+                <div key={`existing-${i}`} style={{ position: 'relative' }}>
+                  <img
+                    src={src}
+                    alt={`Uploaded ${i + 1}`}
+                    style={{
+                      width:      '100%',
+                      aspectRatio: '1',
+                      objectFit:  'cover',
+                      border:     '1px solid #E8E4DC',
+                      display:    'block',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingImage(i)}
+                    aria-label={`Remove uploaded image ${i + 1}`}
+                    style={{
+                      position:   'absolute',
+                      top:        '4px',
+                      right:      '4px',
+                      width:      '22px',
+                      height:     '22px',
+                      borderRadius: '50%',
+                      background: 'rgba(26,23,20,0.72)',
+                      border:     'none',
+                      color:      '#FAFAF7',
+                      fontSize:   '0.75rem',
+                      cursor:     'pointer',
+                      display:    'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
               {imagePreviews.map((src, i) => (
-                <div key={i} style={{ position: 'relative' }}>
+                <div key={`new-${i}`} style={{ position: 'relative' }}>
                   <img
                     src={src}
                     alt={`Preview ${i + 1}`}
@@ -581,7 +653,11 @@ export default function ProductUploadForm() {
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
             </svg>
           )}
-          {submitting ? 'Saving piece…' : uploading ? 'Uploading images…' : 'Add to Inventory'}
+          {submitting
+            ? (isEdit ? 'Updating piece…' : 'Saving piece…')
+            : uploading
+              ? 'Uploading images…'
+              : (isEdit ? 'Update Product' : 'Add to Inventory')}
         </button>
 
         <style>{`

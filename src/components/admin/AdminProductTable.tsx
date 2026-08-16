@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
 interface Product {
@@ -125,7 +126,13 @@ export default function AdminProductTable() {
               <td className="py-4 px-6 font-['DM_Sans'] text-[#6B6057] text-sm">
                 {formatText(product.type)}
               </td>
-              <td className="py-4 px-6 text-right">
+              <td className="py-4 px-6 text-right whitespace-nowrap">
+                <Link
+                  href={`/admin/products/${product.id}/edit`}
+                  className="font-['DM_Sans'] text-xs text-[#6B6057] hover:text-[#1A1714] transition-colors duration-200 uppercase tracking-wider font-semibold mr-5"
+                >
+                  Edit
+                </Link>
                 <button
                   onClick={() => handleDelete(product.id)}
                   className="font-['DM_Sans'] text-xs text-red-600 hover:text-red-800 transition-colors duration-200 uppercase tracking-wider font-semibold"
